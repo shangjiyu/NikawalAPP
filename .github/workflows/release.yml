@@ -1,0 +1,152 @@
+name: Build Nikawal Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Bump Version
+        default: v1.0.0
+        required: true
+
+jobs:
+
+  build-windows-package:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+        with: 
+          repository: ${{ secrets.NIKAWAL_GITHUB_REPOSITORY }}
+          token: ${{ secrets.NIKAWAL_GH_PAT }}
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ vars.FLUTTER_BASE_VERSION }}
+          channel: 'stable'
+          cache: true
+      - name: Build Nikawal
+        run: |
+          cd example && flutter build windows --release --obfuscate --split-debug-info=./debugInfo/windows
+      - name: Package Nikawal
+        run: |
+          pushd "c:\program files (x86)\inno setup 6\Languages"
+          curl -kLSs https://github.com/kira-96/Inno-Setup-Chinese-Simplified-Translation/raw/main/ChineseSimplified.isl -o ChineseSimplified.isl
+          popd
+          (Get-Content nikawal_install.iss) -replace '1.0.0', '${{ github.event.inputs.version }}' | Out-File -encoding ASCII nikawal_install.iss
+          iscc .\nikawal_install.iss
+      - name: Rename Nikawal
+        shell: bash
+        run: |
+          pushd ./Output
+          mv NikawalSetup.exe NikawalSetup-${{ github.event.inputs.version }}-x86_64.exe
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: NikawalSetup-${{ github.event.inputs.version }}-x86_64.exe
+          path: ./Output/NikawalSetup-${{ github.event.inputs.version }}-x86_64.exe
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          draft: true
+          files: Output/NikawalSetup-${{ github.event.inputs.version }}-x86_64.exe
+          token: ${{ secrets.NIKAWAL_GH_PAT }}
+
+  build-android-arm64v8a-package:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+        with: 
+          repository: ${{ secrets.NIKAWAL_GITHUB_REPOSITORY }}
+          token: ${{ secrets.NIKAWAL_GH_PAT }}
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ vars.FLUTTER_BASE_VERSION }}
+          channel: 'stable'
+          cache: true
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Build Nikawal
+        run: |
+          cd example
+          flutter clean && flutter pub get
+          flutter build apk --release --obfuscate --split-debug-info=./debugInfo/android --split-per-abi --target-platform=android-arm64 --dart-define=cronetHttpNoPlay=true
+          mv build/app/outputs/flutter-apk/app-arm64-v8a-release.apk ../Nikawal-${{ github.event.inputs.version }}-arm64-v8a.apk
+      - uses: actions/upload-artifact@v3
+        with:
+          name: Nikawal-${{ github.event.inputs.version }}-arm64-v8a.apk
+          path: Nikawal-${{ github.event.inputs.version }}-arm64-v8a.apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          draft: true
+          files: Nikawal-${{ github.event.inputs.version }}-arm64-v8a.apk
+          token: ${{ secrets.NIKAWAL_GH_PAT }}
+
+  build-linux-amd64-deb_rpm-package:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+        with: 
+          repository: ${{ secrets.NIKAWAL_GITHUB_REPOSITORY }}
+          token: ${{ secrets.NIKAWAL_GH_PAT }}
+      
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ vars.FLUTTER_BASE_VERSION }}
+          channel: 'stable'
+          cache: true
+      - name: install dependencies
+        run: sudo apt update -y && sudo apt install -y libayatana-appindicator3-dev ninja-build build-essential rpm libarchive-tools
+
+      - name: build linux deb/rpm package
+        run: |
+          cd example
+          flutter build linux --release --obfuscate --split-debug-info=./debugInfo/linux
+          cd linux
+          mkdir -p ./debian/build-src/opt/apps/com.nikawal.nspa.linux/files/lib
+          pushd ./debian/build-src/opt/apps/com.nikawal.nspa.linux/files || exit
+          rm -rf ./*
+          popd || exit
+
+          # cp
+          cp -r ../build/linux/x64/release/bundle/* ./debian/build-src/opt/apps/com.nikawal.nspa.linux/files
+
+          echo "build deb package"
+          pushd ./debian || exit
+
+          dpkg -b ./build-src com.nikawal.nspa.linux.deb
+
+          popd || exit
+
+          echo "build rpm package"
+          NIKAWAL_SRC=`pwd` rpmbuild -bb ./rpm.spec
+
+      - name: Rename deb package
+        run: |
+          mv ./example/linux/debian/com.nikawal.nspa.linux.deb ./example/linux/debian/com.nikawal.nspa.linux-${{ github.event.inputs.version }}-x86_64.deb
+          mv ~/rpmbuild/RPMS/x86_64/Nikawal*.rpm ./example/linux/debian/com.nikawal.nspa.linux-${{ github.event.inputs.version }}-x86_64.rpm
+      - uses: actions/upload-artifact@v3
+        with:
+          name: com.nikawal.nspa.linux-${{ github.event.inputs.version }}-x86_64.deb
+          path: ./example/linux/debian/com.nikawal.nspa.linux-${{ github.event.inputs.version }}-x86_64.deb
+      - uses: actions/upload-artifact@v3
+        with:
+          name: com.nikawal.nspa.linux-${{ github.event.inputs.version }}-x86_64.rpm
+          path: ./example/linux/debian/com.nikawal.nspa.linux-${{ github.event.inputs.version }}-x86_64.rpm
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          draft: true
+          files: |
+            ./example/linux/debian/com.nikawal.nspa.linux-${{ github.event.inputs.version }}-x86_64.deb
+            ./example/linux/debian/com.nikawal.nspa.linux-${{ github.event.inputs.version }}-x86_64.rpm
+          token: ${{ secrets.NIKAWAL_GH_PAT }}
