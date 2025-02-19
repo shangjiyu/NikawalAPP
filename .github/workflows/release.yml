@@ -24,15 +24,17 @@ jobs:
           flutter-version: ${{ vars.FLUTTER_BASE_VERSION }}
           channel: 'stable'
           cache: true
-      - name: Build Nikawal
+      - name: Build Nikawal Exe
         run: |
-          cd example && flutter build windows --release --obfuscate --split-debug-info=./debugInfo/windows
-      - name: Package Nikawal
+          cd example
+          (Get-Content pubspec.yaml) -replace 'version: *.+', 'version: ${{ github.event.inputs.version }}' | Out-File -encoding ASCII pubspec.yaml
+          flutter build windows --release --obfuscate --split-debug-info=./debugInfo/windows
+      - name: Package Nikawal Installation
         run: |
           pushd "c:\program files (x86)\inno setup 6\Languages"
           curl -kLSs https://github.com/kira-96/Inno-Setup-Chinese-Simplified-Translation/raw/main/ChineseSimplified.isl -o ChineseSimplified.isl
           popd
-          (Get-Content nikawal_install.iss) -replace '1.0.0', '${{ github.event.inputs.version }}' | Out-File -encoding ASCII nikawal_install.iss
+          (Get-Content nikawal_install.iss) -replace 'MyAppVersion "*.+"', 'MyAppVersion "${{ github.event.inputs.version }}"' | Out-File -encoding ASCII nikawal_install.iss
           iscc .\nikawal_install.iss
       - name: Rename Nikawal
         shell: bash
@@ -40,7 +42,7 @@ jobs:
           pushd ./Output
           mv NikawalSetup.exe NikawalSetup-${{ github.event.inputs.version }}-x86_64.exe
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: NikawalSetup-${{ github.event.inputs.version }}-x86_64.exe
           path: ./Output/NikawalSetup-${{ github.event.inputs.version }}-x86_64.exe
@@ -75,10 +77,11 @@ jobs:
       - name: Build Nikawal
         run: |
           cd example
+          sed -i 's/version:.*/version: ${{ github.event.inputs.version }}/' pubspec.yaml
           flutter clean && flutter pub get
           flutter build apk --release --obfuscate --split-debug-info=./debugInfo/android --split-per-abi --target-platform=android-arm64 --dart-define=cronetHttpNoPlay=true
           mv build/app/outputs/flutter-apk/app-arm64-v8a-release.apk ../Nikawal-${{ github.event.inputs.version }}-arm64-v8a.apk
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: Nikawal-${{ github.event.inputs.version }}-arm64-v8a.apk
           path: Nikawal-${{ github.event.inputs.version }}-arm64-v8a.apk
@@ -98,7 +101,6 @@ jobs:
         with: 
           repository: ${{ secrets.NIKAWAL_GITHUB_REPOSITORY }}
           token: ${{ secrets.NIKAWAL_GH_PAT }}
-      
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ vars.FLUTTER_BASE_VERSION }}
@@ -110,6 +112,7 @@ jobs:
       - name: build linux deb/rpm package
         run: |
           cd example
+          sed -i 's/version:.*/version: ${{ github.event.inputs.version }}/' pubspec.yaml
           flutter build linux --release --obfuscate --split-debug-info=./debugInfo/linux
           cd linux
           mkdir -p ./debian/build-src/opt/apps/com.nikawal.nspa.linux/files/lib
@@ -134,11 +137,11 @@ jobs:
         run: |
           mv ./example/linux/debian/com.nikawal.nspa.linux.deb ./example/linux/debian/com.nikawal.nspa.linux-${{ github.event.inputs.version }}-x86_64.deb
           mv ~/rpmbuild/RPMS/x86_64/Nikawal*.rpm ./example/linux/debian/com.nikawal.nspa.linux-${{ github.event.inputs.version }}-x86_64.rpm
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: com.nikawal.nspa.linux-${{ github.event.inputs.version }}-x86_64.deb
           path: ./example/linux/debian/com.nikawal.nspa.linux-${{ github.event.inputs.version }}-x86_64.deb
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: com.nikawal.nspa.linux-${{ github.event.inputs.version }}-x86_64.rpm
           path: ./example/linux/debian/com.nikawal.nspa.linux-${{ github.event.inputs.version }}-x86_64.rpm
