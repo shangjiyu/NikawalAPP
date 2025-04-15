@@ -7,6 +7,11 @@ on:
         description: Bump Version
         default: v1.0.0
         required: true
+      branch:
+        description: Which branch to build
+        required: true
+        type: string
+        default: main
 
 jobs:
 
@@ -19,6 +24,7 @@ jobs:
         with: 
           repository: ${{ secrets.NIKAWAL_GITHUB_REPOSITORY }}
           token: ${{ secrets.NIKAWAL_GH_PAT }}
+          ref: ${{ github.event.inputs.branch }}
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ vars.FLUTTER_BASE_VERSION }}
@@ -36,7 +42,7 @@ jobs:
           popd
           (Get-Content nikawal_install.iss) -replace 'MyAppVersion "*.+"', 'MyAppVersion "${{ github.event.inputs.version }}"' | Out-File -encoding ASCII nikawal_install.iss
           iscc .\nikawal_install.iss
-      - name: Rename Nikawal
+      - name: Rename Nikawal Exe
         shell: bash
         run: |
           pushd ./Output
@@ -61,6 +67,7 @@ jobs:
         with: 
           repository: ${{ secrets.NIKAWAL_GITHUB_REPOSITORY }}
           token: ${{ secrets.NIKAWAL_GH_PAT }}
+          ref: ${{ github.event.inputs.branch }}
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ vars.FLUTTER_BASE_VERSION }}
@@ -74,7 +81,7 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-      - name: Build Nikawal
+      - name: Build Nikawal APK
         run: |
           cd example
           sed -i 's/version:.*/version: ${{ github.event.inputs.version }}/' pubspec.yaml
@@ -101,6 +108,7 @@ jobs:
         with: 
           repository: ${{ secrets.NIKAWAL_GITHUB_REPOSITORY }}
           token: ${{ secrets.NIKAWAL_GH_PAT }}
+          ref: ${{ github.event.inputs.branch }}
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ vars.FLUTTER_BASE_VERSION }}
