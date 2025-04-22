@@ -60,7 +60,7 @@ jobs:
           token: ${{ secrets.NIKAWAL_GH_PAT }}
 
   build-android-arm64v8a-package:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v4
@@ -100,7 +100,7 @@ jobs:
           token: ${{ secrets.NIKAWAL_GH_PAT }}
 
   build-linux-amd64-deb_rpm-package:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Check out Git repository
